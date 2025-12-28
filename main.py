@@ -6,10 +6,8 @@ from zstandard import ZstdCompressor, ZstdDecompressor
 import json
 import numpy as np
 import jsonschema
-from datetime import datetime
+from datetime import datetime, UTC
 import io
-
-
 
 class Gen5FileHandler():
     #HEADER
@@ -206,11 +204,19 @@ class Gen5FileHandler():
         return compressed_chunk
         
     #METADATA
-    def metadata_validator(self, manifest) -> bytes:
+    def metadata_validator(self, manifest) -> bool:
         """Validate and compress metadata manifest using JSON Schema and zstd."""
         json_schema = self.JSON_SCHEMA
         schema = json.loads(json_schema)
-        jsonschema.validate(instance=manifest, schema=schema)
+        # validation
+        try:
+            jsonschema.validate(instance=manifest, schema=schema)
+            return True
+        except Exception as e:
+            return False
+        
+        
+    def metadata_compressor(self, manifest):
         json_bytes = json.dumps(manifest, indent=2).encode("utf-8")
         chunk_type = b"META"
         chunk_flags = b"0000"
@@ -218,7 +224,7 @@ class Gen5FileHandler():
         header = struct.pack("<4s 4s I", chunk_type, chunk_flags, chunk_size)
         compressed = ZstdCompressor().compress(header + json_bytes)
         return compressed
-
+    
     def build_manifest(
         self,
         version_major: int,
@@ -265,7 +271,7 @@ class Gen5FileHandler():
                 "model_info": {
                     "model_name": model_name,
                     "version": model_version,
-                    "date": datetime.utcnow().isoformat() + "Z",
+                    "date": datetime.now(UTC).isoformat(),
                     "prompt": prompt,
                     "tags": tags
                 },
@@ -410,23 +416,37 @@ class Gen5FileHandler():
             decompressed = decompressor.decompress(compressed_chunk)
 
             if len(decompressed) < 12:
-                raise ValueError("Truncated latent chunk header")
+                raise Gen5LatentError("Truncated latent chunk")
 
             chunk_type, chunk_flags, chunk_size = struct.unpack('<4s 4s I', decompressed[:12])
             data_bytes = decompressed[12:12 + chunk_size]
 
             if len(data_bytes) != chunk_size:
-                raise ValueError("Truncated latent chunk payload")
+                raise Gen5LatentError("Truncated latent chunk")
 
-            flag_str = chunk_flags.decode('utf-8', errors='ignore').strip()
-            dtype = np.float16 if flag_str == "F16" else np.float32
+            flag_str = chunk_flags.decode('utf-8', errors='ignore').replace('\x00', '').strip()
 
+            if flag_str == "F16":
+                dtype = np.float16
+            elif flag_str == "F32":
+                dtype = np.float32
+            else:
+                raise ValueError(f"Unknown latent dtype flag: {flag_str!r}")
+
+            print("chunk_size:", chunk_size)
+            print("len(data_bytes):", len(data_bytes))
+            print("expected bytes:", np.prod(shape) * np.dtype(dtype).itemsize)
+            expected = np.prod(shape) * np.dtype(dtype).itemsize
+            if len(data_bytes) != expected:
+                raise ValueError(
+                    f"Size mismatch: expected {expected} bytes, got {len(data_bytes)}"
+                )
             arr = np.frombuffer(data_bytes, dtype=dtype).copy()
             arr = arr.reshape(shape)
             return arr
         else:
             if len(compressed_chunk) < 12:
-                raise ValueError("Truncated latent chunk header")
+                raise Gen5LatentError("Truncated latent chunk")
 
             chunk_type, chunk_flags, chunk_size = struct.unpack(
                 "<4s 4s I", compressed_chunk[:12]
@@ -435,7 +455,7 @@ class Gen5FileHandler():
             data_bytes = compressed_chunk[12:12 + chunk_size]
 
             if len(data_bytes) != chunk_size:
-                raise ValueError("Truncated latent chunk payload")
+                raise Gen5LatentError("Truncated latent chunk")
 
             flag_str = chunk_flags.decode("utf-8", errors="ignore").strip()
             dtype = np.float16 if flag_str == "F16" else np.float32
@@ -443,16 +463,13 @@ class Gen5FileHandler():
             arr = np.frombuffer(data_bytes, dtype=dtype).copy()
             return arr.reshape(shape)
 
-
-
-
     #RUNNING
 
     def file_encoder(self, filename: str, latent: Dict[str, np.ndarray], chunk_records: list,
                     model_name: str, model_version: str, prompt: str, tags: list, img_binary: bytes, should_compress: bool = True, convert_float16: bool = True):
         """ Orchestrator function to encode GEN5 file.
         Args:
-            filename (str): Output GEN5 filename. [REQUIRED]
+            filename (str): Output GEN5 filename. [.gen5 extension is REQUIRED]
             latent (Dict[str, np.ndarray]): Dictionary of latent arrays.
             chunk_records (list): List to append chunk records to.
             model_name (str): Name of the model.
@@ -488,6 +505,8 @@ class Gen5FileHandler():
             }
             chunk_records.append(image_chunk_record)
             current_offset += len(image_chunk)
+            print("ENCODER STORED FLAG:", chunk_records[-1]["flags"])
+
 
         #build manifest with all chunks
         manifest = self.build_manifest(
@@ -501,17 +520,17 @@ class Gen5FileHandler():
         )
 
         # compress metadata
-        compressed_metadata = self.metadata_validator(manifest)
+        compressed_metadata = self.metadata_compressor(manifest)
         metadata_size = len(compressed_metadata)
         
         # calculate total file size
         total_file_size = self.HEADER_SIZE + len(latent_chunk) + (len(image_chunk) if image_chunk else 0) + metadata_size
 
-        # update file_size in manifest
+        #update file_size in manifest
         manifest["gen5_metadata"]["file_info"]["file_size"] = total_file_size
         
-        # recompress metadata with the updated file_size
-        compressed_metadata = self.metadata_validator(manifest)
+        #recompress metadata with the updated file_size
+        compressed_metadata = self.metadata_compressor(manifest)
         metadata_size = len(compressed_metadata)
         total_file_size = self.HEADER_SIZE + len(latent_chunk) + (len(image_chunk) if image_chunk else 0) + len(compressed_metadata)
 
@@ -553,16 +572,16 @@ class Gen5FileHandler():
             header_bytes = f.read(self.HEADER_SIZE)
             header = self.header_parse(header_bytes)
             if not self.header_validate(header):
-                raise ValueError("Invalid or corrupted GEN5 header")
+                raise Gen5CorruptHeader(message=f"Invalid header: {header}")
             f.seek(header['chunk_table_offset'])
             metadata_compressed = f.read(header['chunk_table_size'])
             metadata = self.metadata_parser(metadata_compressed)
-
+            if not self.metadata_validator(metadata):
+                raise Gen5MetadataError(message=f"Invalid metadata: {metadata}")
             chunk_records = metadata['gen5_metadata']['chunks']
             chunks = {}
             chunks['latent'] = []
             
-
             for record in chunk_records:
                 chunk_type = record['type']
                 compressed = record.get("compressed", True)
@@ -571,12 +590,14 @@ class Gen5FileHandler():
                 raw_chunk = f.read(record['compressed_size'])
 
                 if len(raw_chunk) != record['compressed_size']:
-                    raise IOError(f"Truncated chunk {chunk_type} at offset {record['offset']}")
+                    raise Gen5ChunkError(f"Truncated chunk {chunk_type} at offset {record['offset']}")
 
                 if chunk_type == "LATN":
                     shape = tuple(record['extra']['shape'])
 
                     if compressed:
+                        print("decoded raw_chunk len:", len(raw_chunk))
+                        print("expected total bytes:", np.prod(shape))
                         latent_array = self.latent_parser(raw_chunk, shape, True)
                     else:
                         latent_array = self.latent_parser(raw_chunk, shape, False)
@@ -608,13 +629,24 @@ class Gen5FileHandler():
             nonlocal loaded_array
             if loaded_array is None:
                 with open(filename, "rb") as f:
-                    offset = chunk_record['offset']
-                    size = chunk_record['compressed_size']
-                    f.seek(offset)
-                    compressed_chunk = f.read(size)
-                    shape = tuple(chunk_record['extra']['shape'])
-                    compressed = chunk_record.get("compressed", True)
-                    loaded_array = self.latent_parser(compressed_chunk, shape, compressed)
+                    try:
+                        offset = chunk_record['offset']
+                        size = chunk_record['compressed_size']
+                        
+                        shape = tuple(chunk_record['extra']['shape'])
+                        compressed = chunk_record.get("compressed", True)
+                        f.seek(0, 2)                 # move to end
+                        file_size = f.tell()
+                        if offset + size > file_size:
+                            raise Gen5LatentError(
+                                f"Chunk at offset {offset} with size {size} exceeds file bounds ({file_size})."
+                            )
+                        f.seek(offset)
+                        compressed_chunk = f.read(size)
+                        loaded_array = self.latent_parser(compressed_chunk, shape, compressed)
+                    except Exception as e:
+                        raise Gen5LatentError(f"Failed to load the latent chunk : {chunk_record} | {e}")
+
             return loaded_array
         return load
 
@@ -623,3 +655,30 @@ class Gen5FileHandler():
         for record in chunk_records:
             if record['type'] == "LATN":
                 yield self.make_lazy_latent_loader(filename, record)
+
+#errors
+class Gen5DecodeError(Exception):
+    pass
+
+class Gen5CorruptHeader(Gen5DecodeError):
+    def __init__(self, message: str):
+        super().__init__(f"Corrupt header: {message}")
+
+class Gen5MetadataError(Gen5DecodeError):
+    def __init__(self, message: str):
+        super().__init__(f"Corrupt Metadata: {message}")
+
+class Gen5ChunkError(Gen5DecodeError):
+    def __init__(self, message: str):
+        super().__init__(f"Corrupt Chunk: {message}")
+
+class Gen5LatentError(Gen5ChunkError):
+    def __init__(self, message: str):
+        super().__init__(f"Corrupt Latent: {message}")
+
+class Gen5ImageError(Gen5ChunkError):
+    def __init__(self, message: str):
+        super().__init__(f"Corrupt Image: {message}")
+
+    
+

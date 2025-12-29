@@ -1,0 +1,4 @@
+generated_files
+.qodo
+.venv
+__pycache__

@@ -7,6 +7,15 @@
 
 ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge)
 
+## Features
+- Noise latent tensor storage
+- Rich AI-native metadata that includes
+      - Model name and version
+      - Prompt  
+      - Tags  
+      - Hardware information  
+      - Generation settings
+- Environment info stored automatically as hashed canonical strings
 ## Installation
 Just pip install the package!
 ```bash
@@ -92,5 +101,6 @@ if image_bytes is not None:
     img.save("decoded_image.png")
 ```
 
-LICENSE
+# LICENSE
 MIT
+

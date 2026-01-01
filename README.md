@@ -3,9 +3,6 @@
 ![bannerimage](.gen_file_format.png)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![PyPI](https://img.shields.io/pypi/v/gen5)
-![License](https://img.shields.io/github/license/AnuroopVJ/gen5/)
-
-![Build](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge)
 
 ## Features
 - Noise latent tensor storage

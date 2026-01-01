@@ -1,5 +1,5 @@
 ---
-title: 'GEN5 - A Binary Container Format For Reproducibile AI Image Generation Artifacts'
+title: 'GEN5 - A Binary Container Format For Reproducible AI Image Generation Artifacts'
 tags:
   - Python
   - Machine Learning
@@ -15,11 +15,11 @@ bibliography: paper.bib
 
 # Summary
 
-'gen5' is an open-source Python package that aims to address the shortcomings of existing methods by which context related to AI generated Images are stored. It offers a simple method of storing AI images alongside it's context as a structured binary container format.
+'gen5' is an open-source Python package that aims to address the shortcomings of existing methods by which context related to AI generated Images are stored. It offers a simple method of storing AI images alongside their context as a structured binary container format.
 
 # Statement of need
 
-Reproducibility in  AI-generated images is an active area of research today, yet apart from a handful of ad-hoc metadata embedding mechanisms, there is a gap for a standard and coupled way of storing and utilising generated context concerining AI generated images. Although EXIF, XMP, and similar formats allow for the embedding of custom metadata, they fail to consider the context relating to AI-generated images as first-class, validated artifacts. SideCar files, although suitable for large-scale datasets, introduces uneeded complexity and fragility for small to medium-scale analysis and experimentation  as it requires maintaining separate files and synchronization systems. As a result, critical information such as generation parameters, environment details,s and intermediate representations are often fragmented, loosely coupled, or lost altogether. In additon to this existing standards are not reliable in storing anything more than limited metadata like prompts, medel name and version etc. This points to a need for a standard way of dealing with such context.
+Reproducibility in  AI-generated images is an active area of research today, yet apart from a handful of ad-hoc metadata embedding mechanisms, there is a gap for a standard and coupled way of storing and utilising generated context concerining AI generated images. Although EXIF, XMP, and similar formats allow for the embedding of custom metadata, they fail to consider the context relating to AI-generated images as first-class, validated artifacts. SideCar files, although suitable for large-scale datasets, introduces uneeded complexity and fragility for small to medium-scale analysis and experimentation  as it requires maintaining separate files and synchronization systems. As a result, critical information such as generation parameters, environment details,s and intermediate representations are often fragmented, loosely coupled, or lost altogether. In addition to this, existing standards are not reliable in storing anything more than limited metadata like prompts, model name, and version, etc. This points to a need for a standard way of dealing with such context.
 
 The 'gen5' library addresses this gap by providing a simple and structured way of storing and interacting with such context directly alongside the binary of the generated image in a binary container format. This offers a simple solution for experimenters to compare and study.
 
@@ -27,8 +27,8 @@ Concurrent work by [Gao2024TowardsDA] proposes AIGIF (AI-Generated Image Format)
 
 Separately, IPTC has recently proposed separate fields for storing AI related meadata (i.e, AI System Used, AI System Version Used, AI Prompt Information, and AI Prompt Writer Name) [@iptc2024]. While this improves transparency for editorial and provenance workflows, they are not designed to support ML reproducibility. They do not capture critical technical details such as model checkpoint hashes, sampling configurations, seeds/initial noise, or hardware/runtime information, which are required in typical ML pipelines.
 
-Work by [@Guo_2024_CVPR] demonstrates that optimizing the initial noise prior to sampling leads to images that are more semantically aligned with the input prompt. Importantly, once an optimized noise tensor is obtained, it can be reused to regenerate the same aligned image under deterministic sampling conditions. Thus, storing the optimized initial noise offers a practical mechanism for improving reproducibility and consistency in text-to-image generation, while still benefiting from the alignment gains introduced by INITNO.
+Work by [@Guo_2024_CVPR] demonstrates that optimizing the initial noise before sampling leads to images that are more semantically aligned with the input prompt. Importantly, once an optimized noise tensor is obtained, it can be reused to regenerate the same aligned image under deterministic sampling conditions. Thus, storing the optimized initial noise offers a practical mechanism for improving reproducibility and consistency in text-to-image generation, while still benefiting from the alignment gains introduced by INITNO.
 
-A review of current AI-native formats, including AIGIF [@Gao2024TowardsDA], IPTC AI metadata [@iptc2024], and diffusion model checkpoints, reveals no comprehensive solution that embeds latent states directly alongside the image in a unified container. gen5 fills this niche by ensuring that all components necessary for analysis, comparison, and reuse remain inseparable during sharing, archiving, or processing.
+A review of current AI-native formats, including AIGIF [@Gao2024TowardsDA], IPTC AI metadata [@iptc2024], and diffusion model checkpoints, reveals no comprehensive solution that embeds latent states directly alongside the image in a unified container. Gen5 fills this niche by ensuring that all components necessary for analysis, comparison, and reuse remain inseparable during sharing, archiving, or processing.
 
 # References

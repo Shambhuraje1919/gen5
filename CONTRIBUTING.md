@@ -1,5 +1,3 @@
-# CONTRIBUTING.md
-
 # Contributing to GEN5
 
 Thank you for your interest in contributing! We welcome contributions in the form of bug fixes, new features, tests, and documentation improvements.

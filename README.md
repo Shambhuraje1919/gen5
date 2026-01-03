@@ -14,6 +14,8 @@
       - Hardware information  
       - Generation settings
 - Environment info stored automatically as hashed canonical strings
+- Issues warnings if environment drift is detected!
+- 
 ## Installation
 Just pip install the package!
 ```bash

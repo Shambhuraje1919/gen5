@@ -139,7 +139,7 @@ MIT
 # Contribution
 Please refer to the CONTRIBUTING.md filein the repo
 # Documentation
-Full docs: https://anuroopvj.github.io/gen5/api.html
+Full docs: https://anuroopvj.github.io/gen5
 
 # Future improvements
 - Supporting other frameworks and utilities in the EnvChunk

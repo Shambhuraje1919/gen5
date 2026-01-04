@@ -6,7 +6,7 @@ from ..chunks.latent import Gen5Latent
 from ..chunks.image import Gen5Image  
 from ..chunks.env import Gen5Env
 from ..chunks.metadata import Gen5Metadata
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from PIL import Image
 import numpy as np
 import struct
@@ -77,7 +77,7 @@ class Gen5FileHandler():
         
 
     def file_encoder(self, filename: str, latent: Dict[str, np.ndarray], chunk_records: list,
-                    model_name: str, model_version: str, prompt: str, tags: list, img_binary: bytes, should_compress: bool = True, convert_float16: bool = True, generation_settings: Optional[dict] = None, hardware_info: Optional[dict] = None):
+                    model_name: str, model_version: str, prompt: str, tags: list, img_binary: bytes, should_compress: bool = True, convert_float16: bool = True, generation_settings: Optional[dict] = None, hardware_info: Optional[dict] = None, extra_image: Optional[Dict[str, Any]]= None):
         """ Orchestrator function to encode GEN5 file.
         Args:
             filename (str): Output GEN5 filename. [.gen5 extension is REQUIRED]
@@ -113,7 +113,7 @@ class Gen5FileHandler():
                 "compressed_size": len(image_chunk),
                 "uncompressed_size": len(img_binary),
                 "hash": hashlib.sha256(img_binary).hexdigest(),
-                "extra": {},
+                "extra": extra_image or {},
                 "compressed": True
             }
             chunk_records.append(image_chunk_record)
